@@ -58,9 +58,11 @@ export default function Home() {
             process.env.NEXT_PUBLIC_TMDB_API_KEY
           }&with_genres=${genreIdsString}&sort_by=popularity.desc`
         );
-        const data = await res.json();
-        let allMovies: Movie[] = data.results || [];
+        const allMovies: Movie[] = trending.concat(recommended);
 
+        const recommended: Movie[] = allMovies.filter((m: Movie) =>
+        favoriteGenres.some((g: number) => m.genre_ids?.includes(g))
+        );
         // 4. Remove duplicates and movies already in favorites
         const uniqueMovies = Array.from(
           new Map(allMovies.map((m) => [m.id, m])).values()
