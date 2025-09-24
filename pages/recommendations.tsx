@@ -1,43 +1,34 @@
-import { useEffect, useState } from "react";
+// pages/recommendations.tsx
 import { useFavorites } from "../context/FavoritesContext";
-import MovieList from "../components/MovieList";
+import { Movie } from "../types/Movie";
+import MovieGrid from "../components/MovieGrid";
+import styled from "styled-components";
+
+const Container = styled.div`
+  max-width: 1100px;
+  margin: 2rem auto;
+  padding: 1rem;
+`;
 
 export default function RecommendationsPage() {
   const { favorites } = useFavorites();
-  const [recommendations, setRecommendations] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (favorites.length === 0) return;
+  // collect all genres from favorites
+  const favoriteGenres: number[] = favorites.flatMap((f: Movie) => f.genre_ids ?? []);
 
-    const fetchRecommendations = async () => {
-      const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
-      let recs: any[] = [];
-
-      for (const fav of favorites) {
-        const res = await fetch(
-          `https://api.themoviedb.org/3/movie/${fav.id}/recommendations?api_key=${apiKey}`
-        );
-        const data = await res.json();
-        recs = [...recs, ...(data.results || [])];
-      }
-
-      // Remove duplicates by movie ID
-      const uniqueRecs = Array.from(new Map(recs.map(m => [m.id, m])).values());
-
-      setRecommendations(uniqueRecs);
-    };
-
-    fetchRecommendations();
-  }, [favorites]);
+  // get recommended movies (for now, just filter favorites by shared genres)
+  const recommended: Movie[] = favorites.filter((m: Movie) =>
+    m.genre_ids?.some((g: number) => favoriteGenres.includes(g))
+  );
 
   return (
-    <div>
-      <h1>Recommended For You</h1>
-      {recommendations.length > 0 ? (
-        <MovieList movies={recommendations} />
+    <Container>
+      <h1>Recommended Movies</h1>
+      {recommended.length > 0 ? (
+        <MovieGrid movies={recommended} />
       ) : (
-        <p>Add some favorites to see recommendations!</p>
+        <p>No recommendations yet. Add favorites to see more.</p>
       )}
-    </div>
+    </Container>
   );
 }
