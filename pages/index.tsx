@@ -27,71 +27,47 @@ export default function Home() {
     fetchTrending();
   }, []);
 
-  // Fetch recommendations based on favorite genres
+  // Fetch recommendations based on each favorite's genres
   useEffect(() => {
     async function fetchRecommendations() {
-      if (favorites.length === 0) {
-        setRecommended([]);
-        return;
-      }
+      if (favorites.length === 0) return;
 
-      // 1. Collect unique genre IDs from all favorite movies
-      const allGenreIds = new Set<number>();
-      favorites.forEach((fav) => {
-        fav.genre_ids?.forEach((genreId) => {
-          allGenreIds.add(genreId);
-        });
-      });
-
-      if (allGenreIds.size === 0) {
-        setRecommended([]);
-        return;
-      }
-
-      // 2. Join the unique genre IDs for a single API call
-      const genreIdsString = Array.from(allGenreIds).join(",");
-
-      try {
-        // 3. Fetch movies with any of the collected genres
-        const res = await fetch(
+      const promises = favorites.map((fav) =>
+        fetch(
           `https://api.themoviedb.org/3/discover/movie?api_key=${
             process.env.NEXT_PUBLIC_TMDB_API_KEY
-          }&with_genres=${genreIdsString}&sort_by=popularity.desc`
-        );
-        const allMovies: Movie[] = trending.concat(recommended);
+          }&with_genres=${(fav.genre_ids || []).join(",")}`
+        ).then((res) => res.json())
+      );
 
-        const recommended: Movie[] = allMovies.filter((m: Movie) =>
-        favoriteGenres.some((g: number) => m.genre_ids?.includes(g))
-        );
-        // 4. Remove duplicates and movies already in favorites
-        const uniqueMovies = Array.from(
-          new Map(allMovies.map((m) => [m.id, m])).values()
-        );
+      const results = await Promise.all(promises);
 
-        const filtered = uniqueMovies.filter(
-          (m) => !favorites.some((fav) => fav.id === m.id)
-        );
+      // Flatten results
+      const allMovies: Movie[] = results.flatMap((r) => r.results || []);
 
-        // 5. Ensure movies have at least one genre in common with favorites (this step is optional but adds a nice filter)
-        const favoriteGenresSet = new Set(
-          favorites.flatMap((m) => m.genre_ids || [])
-        );
-        const strictFiltered = filtered.filter((m) =>
-          m.genre_ids?.some((g) => favoriteGenresSet.has(g))
-        );
+      // Deduplicate by movie ID
+      const uniqueMovies = Array.from(
+        new Map(allMovies.map((m) => [m.id, m])).values()
+      );
 
-        setRecommended(strictFiltered);
-      } catch (err) {
-        console.error("Error fetching recommendations:", err);
-      }
+      // Exclude already favorited movies
+      const filtered = uniqueMovies.filter(
+        (m) => !favorites.some((fav) => fav.id === m.id)
+      );
+
+      // Optional: filter strictly client-side to ensure at least one matching genre
+      const favoriteGenres = new Set(favorites.flatMap((m) => m.genre_ids || []));
+      const strictFiltered = filtered.filter((m) =>
+        m.genre_ids?.some((g) => favoriteGenres.has(g))
+      );
+
+      setRecommended(strictFiltered);
     }
 
     fetchRecommendations();
   }, [favorites]);
 
-  if (loading) {
-    return <p>Loading...</p>;
-  }
+  if (loading) return <p>Loading...</p>;
 
   return (
     <div>
